@@ -13,6 +13,18 @@ const baseKirbyScale = 1.4;
 
 let audioFileName = '';
 
+// --- Disco background controls ---
+const BG = {
+  idleColor: '#b3ddfc',   // color when NOT playing
+  hue: 200,               // starting hue (0..360)
+  satBase: 70,            // base saturation while playing (0..100)
+  bri: 95,                // brightness while playing (0..100)
+  hueDrift: 0.8,          // slow drift each frame while playing
+  beatKick: 18,           // extra hue speed added on beat
+  damping: 0.9            // how fast beat kick decays
+};
+let bgHueVel = 0;         // current extra hue velocity from beats
+
 // Motion tuning
 const MOTION = {
   powerMax: 0.9,
@@ -62,8 +74,21 @@ function draw() {
   ampLevel = lerp(ampLevel, playing ? bass : 0, 0.25);
   if (playing) detectBeat(bass);
 
-  // Background: simple solid sky color
-  background('#b3ddfc');
+  // --- BACKGROUND ---
+  if (playing) {
+    // decay the beat kick and advance hue
+    bgHueVel *= BG.damping;
+    BG.hue = (BG.hue + BG.hueDrift + bgHueVel + high * 1.5) % 360;
+
+    // use HSB for easy color cycling, then restore RGB
+    colorMode(HSB, 360, 100, 100, 255);
+    // slightly pump saturation with bass so kicks feel punchier
+    const sat = constrain(BG.satBase + bass * 25, 0, 100);
+    background(BG.hue, sat, BG.bri);
+    colorMode(RGB, 255);
+  } else {
+    background(BG.idleColor);
+  }
 
   const r0 = min(width, height) * 0.35;
   const rMax = min(width, height) * 0.60;
@@ -114,7 +139,7 @@ function draw() {
     else msgAlpha = max(0, msgAlpha - MSG_FADE_SPEED);
   }
 
-  // NEW: audio file name at bottom center (black text)
+  // Audio file name at bottom (black)
   if (audioFileName) {
     fill(0);
     textSize(14);
@@ -163,6 +188,9 @@ function onBeat(level) {
   const bump = map(level, 0.35, 1.0, 0.25, 0.7, true);
   wigglePower = min(MOTION.powerMax, wigglePower + bump);
   wiggleSpeed = 0.18 + level * 0.25;
+
+  // kick the disco hue velocity on beats
+  bgHueVel += BG.beatKick * constrain(level, 0, 1);
 }
 
 /* Kirby drawing */
